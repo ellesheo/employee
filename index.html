@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Работник дня</title>
+<style>
+  :root{
+    --bg:#f4f6fb; --card:#ffffff; --text:#1b2130; --muted:#6b7488;
+    --line:#e6e9f2; --accent:#4f6ef7; --accent-soft:#e8edff;
+    --gold:#e9a400; --gold-soft:#fff5da; --danger:#e5484d;
+    --shadow:0 10px 30px rgba(27,33,48,.08);
+    --radius:16px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0f1320; --card:#171c2b; --text:#eef1f7; --muted:#9aa3b8;
+      --line:#28304a; --accent:#6d86ff; --accent-soft:#1e284a;
+      --gold:#f2b829; --gold-soft:#332a12; --danger:#ff6b6f;
+      --shadow:0 10px 30px rgba(0,0,0,.35);
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--text); line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:920px; margin:0 auto; padding:22px 16px 60px}
+
+  /* ---- Экран с кодовым словом ---- */
+  .gate{
+    position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(160deg,var(--bg),var(--accent-soft)); padding:20px;
+  }
+  .gate-card{
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    box-shadow:var(--shadow); padding:32px 26px; width:100%; max-width:390px; text-align:center;
+  }
+  .gate-card h1{font-size:22px; margin:6px 0 4px}
+  .gate-card p{color:var(--muted); margin:0 0 20px; font-size:14px}
+  .logo{font-size:44px; line-height:1}
+  input,button{font-family:inherit; font-size:15px}
+  .field{
+    width:100%; padding:12px 14px; border:1px solid var(--line); border-radius:12px;
+    background:var(--bg); color:var(--text); outline:none;
+  }
+  .field+.field{margin-top:10px}
+  .field:focus{border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft)}
+  .btn{
+    border:none; border-radius:12px; padding:12px 16px; font-weight:600; cursor:pointer;
+    background:var(--accent); color:#fff; transition:filter .15s, transform .05s;
+  }
+  .btn:hover{filter:brightness(1.05)} .btn:active{transform:translateY(1px)}
+  .btn:disabled{opacity:.55; cursor:default}
+  .btn.block{width:100%; margin-top:12px}
+  .btn.ghost{background:transparent; color:var(--muted); border:1px solid var(--line)}
+  .btn.gold{background:var(--gold); color:#25200a}
+  .btn.danger{background:transparent; color:var(--danger); border:1px solid var(--line)}
+  .err{color:var(--danger); font-size:13px; min-height:18px; margin-top:10px}
+  .gate-note{font-size:12px; color:var(--muted); margin-top:14px; line-height:1.4}
+
+  /* ---- Шапка ---- */
+  header.top{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; flex-wrap:wrap}
+  header.top h1{font-size:22px; margin:0; display:flex; align-items:center; gap:10px}
+  .badge{font-size:12px; padding:4px 10px; border-radius:999px; background:var(--accent-soft); color:var(--accent); font-weight:600}
+  .badge.demo{background:var(--gold-soft); color:var(--gold)}
+  .top-actions{display:flex; gap:8px; align-items:center}
+
+  .card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); padding:18px}
+
+  /* ---- Навигация по месяцам ---- */
+  .cal-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px}
+  .cal-title{font-size:18px; font-weight:700; text-transform:capitalize}
+  .nav-btn{width:38px; height:38px; border-radius:10px; border:1px solid var(--line); background:var(--bg); color:var(--text); cursor:pointer; font-size:18px}
+  .nav-btn:hover{border-color:var(--accent)}
+
+  /* ---- Сетка календаря ---- */
+  .weekdays,.grid{display:grid; grid-template-columns:repeat(7,1fr); gap:8px}
+  .weekdays{margin-bottom:8px}
+  .wd{text-align:center; font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.03em}
+  .cell{
+    min-height:78px; border:1px solid var(--line); border-radius:12px; padding:8px; cursor:pointer;
+    background:var(--bg); display:flex; flex-direction:column; gap:4px; transition:border-color .15s, transform .05s;
+    position:relative; overflow:hidden;
+  }
+  .cell:hover{border-color:var(--accent)}
+  .cell:active{transform:translateY(1px)}
+  .cell.empty{visibility:hidden}
+  .cell.weekend .daynum{color:var(--danger)}
+  .cell.today{border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft)}
+  .daynum{font-size:13px; color:var(--muted); font-weight:600}
+  .cell.filled{background:var(--accent-soft); border-color:transparent}
+  .emp{font-size:13px; font-weight:600; color:var(--text); word-break:break-word; line-height:1.25}
+  .emp .star{color:var(--gold)}
+
+  /* ---- Работник месяца ---- */
+  .month-winner{margin-top:18px; display:flex; align-items:center; gap:16px; flex-wrap:wrap}
+  .trophy{font-size:40px}
+  .mw-info{flex:1; min-width:200px}
+  .mw-info .label{font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; font-weight:600}
+  .mw-info .name{font-size:20px; font-weight:700}
+  .mw-info .name.empty{color:var(--muted); font-weight:500; font-style:italic}
+  .mw-info .reason{color:var(--muted); font-size:14px}
+  .suggest{font-size:13px; color:var(--muted); margin-top:6px}
+  .suggest b{color:var(--text)}
+
+  /* ---- Модалка ---- */
+  .modal{position:fixed; inset:0; z-index:40; display:none; align-items:center; justify-content:center; background:rgba(15,19,32,.45); padding:18px}
+  .modal.open{display:flex}
+  .modal-card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); width:100%; max-width:400px; padding:22px}
+  .modal-card h3{margin:0 0 2px; font-size:18px}
+  .modal-card .sub{color:var(--muted); font-size:13px; margin-bottom:16px; text-transform:capitalize}
+  label.lbl{display:block; font-size:13px; font-weight:600; margin:12px 0 6px}
+  textarea.field{resize:vertical; min-height:60px}
+  .modal-actions{display:flex; gap:8px; margin-top:18px}
+  .modal-actions .btn{flex:1}
+  .hint{font-size:12px; color:var(--muted); margin-top:14px; text-align:center}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+
+<!-- ЭКРАН ВХОДА / СОЗДАНИЯ КОДОВОГО СЛОВА -->
+<div class="gate" id="gate">
+  <div class="gate-card">
+    <div class="logo">🏆</div>
+    <h1>Работник дня</h1>
+    <p id="gateSub">Загрузка…</p>
+    <input class="field" id="codeInput" type="password" placeholder="Кодовое слово" autocomplete="off" disabled />
+    <input class="field" id="codeConfirm" type="password" placeholder="Повторите кодовое слово" autocomplete="off" hidden />
+    <button class="btn block" id="codeBtn" disabled>Подождите…</button>
+    <div class="err" id="codeErr"></div>
+    <div class="gate-note" id="gateNote"></div>
+  </div>
+</div>
+
+<!-- ОСНОВНОЙ ИНТЕРФЕЙС -->
+<div class="wrap" id="app" hidden>
+  <header class="top">
+    <h1>🏆 Работник дня <span class="badge" id="modeBadge">общий режим</span></h1>
+    <div class="top-actions">
+      <button class="btn ghost" id="lockBtn">Выйти</button>
+    </div>
+  </header>
+
+  <div class="card">
+    <div class="cal-head">
+      <button class="nav-btn" id="prevBtn" aria-label="Предыдущий месяц">‹</button>
+      <div class="cal-title" id="calTitle">—</div>
+      <button class="nav-btn" id="nextBtn" aria-label="Следующий месяц">›</button>
+    </div>
+
+    <div class="weekdays">
+      <div class="wd">Пн</div><div class="wd">Вт</div><div class="wd">Ср</div>
+      <div class="wd">Чт</div><div class="wd">Пт</div><div class="wd">Сб</div><div class="wd">Вс</div>
+    </div>
+    <div class="grid" id="grid"></div>
+
+    <div class="month-winner">
+      <div class="trophy">🥇</div>
+      <div class="mw-info">
+        <div class="label">Работник месяца</div>
+        <div class="name empty" id="mwName">не выбран</div>
+        <div class="reason" id="mwReason"></div>
+        <div class="suggest" id="mwSuggest"></div>
+      </div>
+      <button class="btn gold" id="setMonthBtn">Выбрать</button>
+    </div>
+  </div>
+
+  <p class="hint" id="footHint"></p>
+</div>
+
+<!-- МОДАЛКА: работник дня -->
+<div class="modal" id="dayModal">
+  <div class="modal-card">
+    <h3>Работник дня</h3>
+    <div class="sub" id="dayModalDate">—</div>
+    <label class="lbl" for="empName">Имя работника</label>
+    <input class="field" id="empName" type="text" placeholder="Например: Иван Петров" />
+    <label class="lbl" for="empNote">Комментарий (необязательно)</label>
+    <textarea class="field" id="empNote" placeholder="За что отмечен"></textarea>
+    <div class="modal-actions">
+      <button class="btn danger" id="dayDelete">Очистить</button>
+      <button class="btn" id="daySave">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- МОДАЛКА: работник месяца -->
+<div class="modal" id="monthModal">
+  <div class="modal-card">
+    <h3>Работник месяца</h3>
+    <div class="sub" id="monthModalTitle">—</div>
+    <label class="lbl" for="mName">Имя работника</label>
+    <input class="field" id="mName" type="text" placeholder="Имя" />
+    <label class="lbl" for="mReason">За что (необязательно)</label>
+    <textarea class="field" id="mReason" placeholder="Комментарий"></textarea>
+    <div class="modal-actions">
+      <button class="btn danger" id="monthDelete">Очистить</button>
+      <button class="btn gold" id="monthSave">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+/* ==========================================================================
+   НАСТРОЙКИ
+   Кодовое слово здесь НЕ хранится — его вы задаёте прямо в браузере при
+   первом открытии сайта. В коде страницы нет ни слова, ни имён работников:
+   все имена шифруются ключом, полученным из кодового слова, и в базе/браузере
+   лежат только в зашифрованном виде.
+
+   Ниже — только данные Firebase (для общего доступа). Пока стоят PASTE_... —
+   сайт работает в ДЕМО-режиме (локально). Инструкция — в файле README.
+   ========================================================================== */
+const CONFIG = {
+  firebase: {
+    apiKey: "AIzaSyCZO97QVHvQsdvr1DX2BYCdl1Wu1Jim3jM",
+    authDomain: "empl-cd294.firebaseapp.com",
+    projectId: "empl-cd294",
+    storageBucket: "empl-cd294.firebasestorage.app",
+    messagingSenderId: "47295395805",
+    appId: "1:47295395805:web:1988a2f275fefb15ef2834"
+  },
+
+  // Заранее заданное кодовое слово (сейчас — «чревовещатель»).
+  // Здесь только зашифрованный «отпечаток»: по нему нельзя узнать само слово,
+  // но при входе оно проверяется. Чтобы задать другое слово — попросите меня
+  // пересчитать этот блок (или поставьте presetAuth: null, тогда сайт предложит
+  // придумать слово при первом открытии).
+  presetAuth: {"v":1,"salt":"OEK1OepWNtUKWM3ZwaWjlw==","verifier":{"iv":"+dkQP7OqCIRVAjwE","ct":"gZcwM1ItMe4RaliTiVzocmONqlpr5f/PgF8ESzv4"}}
+};
+/* ========================================================================== */
+
+const MONTHS = ["январь","февраль","март","апрель","май","июнь","июль",
+                "август","сентябрь","октябрь","ноябрь","декабрь"];
+const MONTHS_GEN = ["января","февраля","марта","апреля","мая","июня","июля",
+                    "августа","сентября","октября","ноября","декабря"];
+const pad = n => String(n).padStart(2,"0");
+const dayKey   = (y,m,d) => `${y}-${pad(m+1)}-${pad(d)}`;   // 2026-09-04
+const monthKey = (y,m)   => `${y}-${pad(m+1)}`;            // 2026-09
+const esc = s => String(s||"").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+const isFirebaseReady = !Object.values(CONFIG.firebase).some(v => String(v).startsWith("PASTE_"));
+
+/* ==================== ШИФРОВАНИЕ (WebCrypto, AES-GCM + PBKDF2) ==================== */
+const te = new TextEncoder(), td = new TextDecoder();
+const b64  = u8 => btoa(String.fromCharCode(...u8));
+const ub64 = s  => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+
+async function deriveKey(passphrase, saltU8){
+  const base = await crypto.subtle.importKey("raw", te.encode(passphrase), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey(
+    { name:"PBKDF2", salt: saltU8, iterations: 200000, hash:"SHA-256" },
+    base, { name:"AES-GCM", length:256 }, true, ["encrypt","decrypt"]
+  );
+}
+async function encObj(key, obj){
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({name:"AES-GCM", iv}, key, te.encode(JSON.stringify(obj)));
+  return { iv: b64(iv), ct: b64(new Uint8Array(ct)) };
+}
+async function decObj(key, blob){
+  const pt = await crypto.subtle.decrypt({name:"AES-GCM", iv: ub64(blob.iv)}, key, ub64(blob.ct));
+  return JSON.parse(td.decode(pt));
+}
+async function exportKeyB64(key){ return b64(new Uint8Array(await crypto.subtle.exportKey("raw", key))); }
+async function importKeyB64(s){ return crypto.subtle.importKey("raw", ub64(s), {name:"AES-GCM"}, true, ["encrypt","decrypt"]); }
+
+const MARKER = "eod-ok";   // что кладём в «проверочный» блок
+
+/* ==================== ХРАНИЛИЩЕ ==================== */
+/* Интерфейс: getMeta(), setMeta(data),
+   subscribeMonth(mKey, cb), saveDay(dKey,mKey,blob), deleteDay(dKey),
+   saveMonth(mKey,blob), deleteMonth(mKey).
+   Имена во всех blob уже зашифрованы — хранилище видит только шифртекст.       */
+let store, mode;
+
+function makeLocalStore(){
+  const DKEY = "eod_data_v2", MKEY = "eod_meta_v2";
+  const read = () => { try{ return JSON.parse(localStorage.getItem(DKEY)) || {days:{},months:{}}; }catch{ return {days:{},months:{}}; } };
+  const write = d => { localStorage.setItem(DKEY, JSON.stringify(d)); window.dispatchEvent(new Event("eod-local-change")); };
+  let handlers = [];
+  const emit = () => handlers.forEach(h => h());
+  window.addEventListener("storage", emit);
+  window.addEventListener("eod-local-change", emit);
+  const pull = (mKey, cb) => {
+    const all = read(), days = {};
+    for(const [k,v] of Object.entries(all.days)) if(v && v.month===mKey) days[k]=v;
+    cb({ days, month: all.months[mKey] || null });
+  };
+  return {
+    async getMeta(){ try{ return JSON.parse(localStorage.getItem(MKEY)) || null; }catch{ return null; } },
+    async setMeta(data){ localStorage.setItem(MKEY, JSON.stringify(data)); },
+    subscribeMonth(mKey, cb){ const h = () => pull(mKey, cb); handlers.push(h); h(); return () => { handlers = handlers.filter(x=>x!==h); }; },
+    saveDay(dKey,mKey,blob){ const d=read(); d.days[dKey]={...blob,month:mKey}; write(d); },
+    deleteDay(dKey){ const d=read(); delete d.days[dKey]; write(d); },
+    saveMonth(mKey,blob){ const d=read(); d.months[mKey]=blob; write(d); },
+    deleteMonth(mKey){ const d=read(); delete d.months[mKey]; write(d); },
+  };
+}
+
+async function makeFirebaseStore(){
+  const appMod = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js");
+  const fs = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+  const db = fs.getFirestore(appMod.initializeApp(CONFIG.firebase));
+  return {
+    async getMeta(){ const s = await fs.getDoc(fs.doc(db,"meta","auth")); return s.exists() ? s.data() : null; },
+    async setMeta(data){ return fs.setDoc(fs.doc(db,"meta","auth"), data); },
+    subscribeMonth(mKey, cb){
+      let days = {}, month = null;
+      const u1 = fs.onSnapshot(fs.query(fs.collection(db,"days"), fs.where("month","==",mKey)), snap => {
+        days = {}; snap.forEach(doc => days[doc.id] = doc.data()); cb({ days, month });
+      });
+      const u2 = fs.onSnapshot(fs.doc(db,"months",mKey), doc => { month = doc.exists() ? doc.data() : null; cb({ days, month }); });
+      return () => { u1(); u2(); };
+    },
+    saveDay(dKey,mKey,blob){ return fs.setDoc(fs.doc(db,"days",dKey), {...blob, month:mKey}); },
+    deleteDay(dKey){ return fs.deleteDoc(fs.doc(db,"days",dKey)); },
+    saveMonth(mKey,blob){ return fs.setDoc(fs.doc(db,"months",mKey), blob); },
+    deleteMonth(mKey){ return fs.deleteDoc(fs.doc(db,"months",mKey)); },
+  };
+}
+
+/* ==================== ЭЛЕМЕНТЫ ==================== */
+const gate = document.getElementById("gate");
+const app  = document.getElementById("app");
+const gateSub = document.getElementById("gateSub");
+const gateNote = document.getElementById("gateNote");
+const codeInput = document.getElementById("codeInput");
+const codeConfirm = document.getElementById("codeConfirm");
+const codeBtn = document.getElementById("codeBtn");
+const codeErr = document.getElementById("codeErr");
+const SKEY = "eod_key_b64";   // ключ на время сессии (sessionStorage)
+
+let cryptoKey = null;
+let gateMode = "enter";       // "enter" | "create"
+let meta = null;
+
+/* ==================== ЗАПУСК ==================== */
+(async function init(){
+  // Строим хранилище (для Firebase — до ввода кодового слова; конфиг не секретен)
+  try{
+    if(isFirebaseReady){ store = await makeFirebaseStore(); mode = "firebase"; }
+    else { store = makeLocalStore(); mode = "demo"; }
+  }catch(e){ console.error(e); store = makeLocalStore(); mode = "demo-fallback"; }
+
+  try{ meta = await store.getMeta(); }catch(e){ console.error(e); meta = null; }
+
+  // Если своё слово ещё не задано в хранилище — используем заранее заданное (пресет).
+  if(!meta && CONFIG.presetAuth) meta = CONFIG.presetAuth;
+
+  // Уже разблокировано в этой вкладке?
+  const cached = sessionStorage.getItem(SKEY);
+  if(cached && meta){
+    try{
+      const key = await importKeyB64(cached);
+      await decObj(key, meta.verifier);           // проверяем, что ключ подходит
+      cryptoKey = key; return openApp();
+    }catch{ sessionStorage.removeItem(SKEY); }
+  }
+
+  showGate(meta ? "enter" : "create");
+})();
+
+function showGate(m){
+  gateMode = m;
+  codeInput.disabled = false; codeBtn.disabled = false; codeInput.value = ""; codeConfirm.value = "";
+  codeErr.textContent = "";
+  if(m === "create"){
+    gateSub.textContent = "Придумайте кодовое слово для входа";
+    codeConfirm.hidden = false;
+    codeBtn.textContent = "Создать и войти";
+    gateNote.textContent = "Это первый вход. Кодовое слово задаётся один раз и будет нужно всем, кто открывает сайт. Запомните его — восстановить нельзя, а имена без него не расшифровать. Выберите не слишком простое слово.";
+  } else {
+    gateSub.textContent = "Введите кодовое слово, чтобы войти";
+    codeConfirm.hidden = true;
+    codeBtn.textContent = "Войти";
+    gateNote.textContent = "";
+  }
+  setTimeout(()=>codeInput.focus(), 60);
+}
+
+async function submitGate(){
+  const word = codeInput.value.trim();
+  if(!word){ codeErr.textContent = "Введите кодовое слово"; return; }
+  codeBtn.disabled = true; codeErr.textContent = "";
+
+  try{
+    if(gateMode === "create"){
+      if(word.length < 4){ codeErr.textContent = "Слишком короткое (мин. 4 символа)"; codeBtn.disabled=false; return; }
+      if(word !== codeConfirm.value.trim()){ codeErr.textContent = "Слова не совпадают"; codeBtn.disabled=false; return; }
+      // На всякий случай проверим, не создал ли кто-то meta параллельно
+      const fresh = await store.getMeta();
+      if(fresh){ meta = fresh; showGate("enter"); codeErr.textContent = "Кодовое слово уже задано — введите его"; return; }
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const key = await deriveKey(word, salt);
+      const verifier = await encObj(key, { m: MARKER });
+      meta = { v:1, salt: b64(salt), verifier };
+      await store.setMeta(meta);
+      cryptoKey = key;
+    } else {
+      const key = await deriveKey(word, ub64(meta.salt));
+      try{
+        const chk = await decObj(key, meta.verifier);
+        if(chk.m !== MARKER) throw new Error("bad");
+      }catch{ codeErr.textContent = "Неверное кодовое слово"; codeBtn.disabled=false; codeInput.select(); return; }
+      cryptoKey = key;
+    }
+    sessionStorage.setItem(SKEY, await exportKeyB64(cryptoKey));
+    openApp();
+  }catch(e){
+    console.error(e);
+    codeErr.textContent = "Ошибка. Попробуйте ещё раз.";
+    codeBtn.disabled = false;
+  }
+}
+codeBtn.addEventListener("click", submitGate);
+codeInput.addEventListener("keydown", e => { if(e.key==="Enter"){ if(gateMode==="create") codeConfirm.focus(); else submitGate(); } });
+codeConfirm.addEventListener("keydown", e => { if(e.key==="Enter") submitGate(); });
+
+document.getElementById("lockBtn").addEventListener("click", () => {
+  sessionStorage.removeItem(SKEY);
+  location.reload();
+});
+
+function openApp(){
+  gate.style.display = "none";
+  app.hidden = false;
+  const badge = document.getElementById("modeBadge");
+  const foot = document.getElementById("footHint");
+  if(mode === "firebase"){
+    badge.textContent = "общий режим"; badge.classList.remove("demo");
+    foot.innerHTML = "Данные общие для всех и зашифрованы кодовым словом. Изменения появляются у всех автоматически.";
+  } else {
+    badge.textContent = (mode==="demo-fallback") ? "демо-режим (ошибка Firebase)" : "демо-режим";
+    badge.classList.add("demo");
+    foot.innerHTML = (mode==="demo-fallback")
+      ? "Не удалось подключиться к Firebase — работаем локально. Проверьте настройки в index.html."
+      : "Демо-режим: данные видны только на этом устройстве. Подключите Firebase в index.html, чтобы сделать их общими.";
+  }
+  render();
+}
+
+/* ==================== КАЛЕНДАРЬ ==================== */
+const today = new Date();
+let view = new Date(today.getFullYear(), today.getMonth(), 1);
+let unsub = null;
+let monthData = { days:{}, month:null };   // здесь уже РАСШИФРОВАННЫЕ данные
+let renderToken = 0;
+
+const calTitle = document.getElementById("calTitle");
+const grid = document.getElementById("grid");
+
+function render(){
+  const y = view.getFullYear(), m = view.getMonth();
+  calTitle.textContent = `${MONTHS[m]} ${y}`;
+  if(unsub) unsub();
+  const mk = monthKey(y,m);
+  unsub = store.subscribeMonth(mk, async raw => {
+    const my = ++renderToken;                 // защита от гонки при быстром листании
+    const decoded = await decryptMonth(raw);
+    if(my !== renderToken) return;            // пришёл более свежий рендер
+    monthData = decoded;
+    drawGrid(); drawMonthWinner();
+  });
+}
+
+async function decryptMonth(raw){
+  const days = {};
+  await Promise.all(Object.entries(raw.days).map(async ([k,blob]) => {
+    try{ const o = await decObj(cryptoKey, blob); days[k] = { name:o.name||"", note:o.note||"", month:blob.month }; }
+    catch{ days[k] = { name:"", note:"", month:blob.month }; }
+  }));
+  let month = null;
+  if(raw.month){
+    try{ const o = await decObj(cryptoKey, raw.month); month = { name:o.name||"", reason:o.reason||"" }; }
+    catch{ month = { name:"", reason:"" }; }
+  }
+  return { days, month };
+}
+
+function drawGrid(){
+  const y = view.getFullYear(), m = view.getMonth();
+  const startOffset = (new Date(y,m,1).getDay()+6)%7;      // Пн=0 … Вс=6
+  const daysInMonth = new Date(y,m+1,0).getDate();
+  const isThisMonth = (y===today.getFullYear() && m===today.getMonth());
+  let html = "";
+  for(let i=0;i<startOffset;i++) html += `<div class="cell empty"></div>`;
+  for(let d=1; d<=daysInMonth; d++){
+    const rec = monthData.days[dayKey(y,m,d)];
+    const dow = new Date(y,m,d).getDay();
+    const cls = ["cell"];
+    if(dow===0 || dow===6) cls.push("weekend");
+    if(rec && rec.name) cls.push("filled");
+    if(isThisMonth && d===today.getDate()) cls.push("today");
+    const empHtml = (rec && rec.name) ? `<div class="emp"><span class="star">★</span> ${esc(rec.name)}</div>` : "";
+    html += `<div class="${cls.join(" ")}" data-day="${d}"><div class="daynum">${d}</div>${empHtml}</div>`;
+  }
+  grid.innerHTML = html;
+  grid.querySelectorAll(".cell[data-day]").forEach(cell => cell.addEventListener("click", () => openDayModal(+cell.dataset.day)));
+}
+
+function drawMonthWinner(){
+  const nameEl = document.getElementById("mwName");
+  const reasonEl = document.getElementById("mwReason");
+  const suggestEl = document.getElementById("mwSuggest");
+  const w = monthData.month;
+  if(w && w.name){ nameEl.textContent = w.name; nameEl.classList.remove("empty"); reasonEl.textContent = w.reason || ""; }
+  else { nameEl.textContent = "не выбран"; nameEl.classList.add("empty"); reasonEl.textContent = ""; }
+  const counts = {};
+  for(const rec of Object.values(monthData.days)) if(rec && rec.name) counts[rec.name] = (counts[rec.name]||0)+1;
+  const top = Object.entries(counts).sort((a,b)=>b[1]-a[1])[0];
+  suggestEl.innerHTML = top ? `Чаще всех в этом месяце: <b>${esc(top[0])}</b> (${top[1]} ${plural(top[1])})` : "";
+}
+function plural(n){
+  const a=n%10, b=n%100;
+  if(a===1 && b!==11) return "раз";
+  if(a>=2 && a<=4 && !(b>=12 && b<=14)) return "раза";
+  return "раз";
+}
+
+document.getElementById("prevBtn").addEventListener("click", () => { view = new Date(view.getFullYear(), view.getMonth()-1, 1); render(); });
+document.getElementById("nextBtn").addEventListener("click", () => { view = new Date(view.getFullYear(), view.getMonth()+1, 1); render(); });
+
+/* ==================== МОДАЛКА «работник дня» ==================== */
+const dayModal = document.getElementById("dayModal");
+const empName = document.getElementById("empName");
+const empNote = document.getElementById("empNote");
+let editingDay = null;
+
+function openDayModal(d){
+  const y=view.getFullYear(), m=view.getMonth();
+  editingDay = { y, m, d, key: dayKey(y,m,d) };
+  const rec = monthData.days[editingDay.key];
+  document.getElementById("dayModalDate").textContent = `${d} ${MONTHS_GEN[m]} ${y}`;
+  empName.value = rec?.name || "";
+  empNote.value = rec?.note || "";
+  dayModal.classList.add("open");
+  setTimeout(()=>empName.focus(), 50);
+}
+function closeDayModal(){ dayModal.classList.remove("open"); editingDay=null; }
+
+document.getElementById("daySave").addEventListener("click", async () => {
+  if(!editingDay) return;
+  const name = empName.value.trim();
+  const ed = editingDay;
+  closeDayModal();
+  if(!name){ store.deleteDay(ed.key); return; }
+  const blob = await encObj(cryptoKey, { name, note: empNote.value.trim() });
+  store.saveDay(ed.key, monthKey(ed.y,ed.m), blob);
+});
+document.getElementById("dayDelete").addEventListener("click", () => {
+  if(!editingDay) return;
+  store.deleteDay(editingDay.key); closeDayModal();
+});
+empName.addEventListener("keydown", e => { if(e.key==="Enter") document.getElementById("daySave").click(); });
+
+/* ==================== МОДАЛКА «работник месяца» ==================== */
+const monthModal = document.getElementById("monthModal");
+const mName = document.getElementById("mName");
+const mReason = document.getElementById("mReason");
+
+document.getElementById("setMonthBtn").addEventListener("click", () => {
+  const y=view.getFullYear(), m=view.getMonth();
+  document.getElementById("monthModalTitle").textContent = `${MONTHS[m]} ${y}`;
+  mName.value = monthData.month?.name || "";
+  mReason.value = monthData.month?.reason || "";
+  monthModal.classList.add("open");
+  setTimeout(()=>mName.focus(), 50);
+});
+document.getElementById("monthSave").addEventListener("click", async () => {
+  const y=view.getFullYear(), m=view.getMonth(), mk=monthKey(y,m);
+  const name = mName.value.trim();
+  monthModal.classList.remove("open");
+  if(!name){ store.deleteMonth(mk); return; }
+  const blob = await encObj(cryptoKey, { name, reason: mReason.value.trim() });
+  store.saveMonth(mk, blob);
+});
+document.getElementById("monthDelete").addEventListener("click", () => {
+  store.deleteMonth(monthKey(view.getFullYear(), view.getMonth()));
+  monthModal.classList.remove("open");
+});
+
+[dayModal, monthModal].forEach(mod => mod.addEventListener("click", e => { if(e.target===mod) mod.classList.remove("open"); }));
+document.addEventListener("keydown", e => { if(e.key==="Escape"){ dayModal.classList.remove("open"); monthModal.classList.remove("open"); } });
+</script>
+</body>
+</html>
