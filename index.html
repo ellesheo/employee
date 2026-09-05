@@ -58,6 +58,7 @@
   .btn.ghost{background:transparent; color:var(--muted); border:1px solid var(--line)}
   .btn.gold{background:var(--gold); color:#25200a}
   .btn.danger{background:transparent; color:var(--danger); border:1px solid var(--line)}
+  .btn.danger.confirming{background:var(--danger); color:#fff; border-color:var(--danger)}
   .err{color:var(--danger); font-size:13px; min-height:18px; margin-top:10px}
   .gate-note{font-size:12px; color:var(--muted); margin-top:14px; line-height:1.4}
 
@@ -539,6 +540,7 @@ function openDayModal(d){
   document.getElementById("dayModalDate").textContent = `${d} ${MONTHS_GEN[m]} ${y}`;
   empName.value = rec?.name || "";
   empNote.value = rec?.note || "";
+  resetDayDelete();
   dayModal.classList.add("open");
   setTimeout(()=>empName.focus(), 50);
 }
@@ -553,7 +555,18 @@ document.getElementById("daySave").addEventListener("click", async () => {
   const blob = await encObj(cryptoKey, { name, note: empNote.value.trim() });
   store.saveDay(ed.key, monthKey(ed.y,ed.m), blob);
 });
-document.getElementById("dayDelete").addEventListener("click", () => {
+// Двухшаговое подтверждение для кнопки «Очистить»:
+// первый клик — предупреждение, второй (в течение 4 сек) — удаление.
+function makeConfirm(btn, label, action){
+  let armed=false, timer=null;
+  function reset(){ armed=false; btn.textContent=label; btn.classList.remove("confirming"); if(timer){clearTimeout(timer); timer=null;} }
+  btn.addEventListener("click", () => {
+    if(!armed){ armed=true; btn.textContent="Точно очистить?"; btn.classList.add("confirming"); timer=setTimeout(reset,4000); return; }
+    reset(); action();
+  });
+  return reset;
+}
+const resetDayDelete = makeConfirm(document.getElementById("dayDelete"), "Очистить", () => {
   if(!editingDay) return;
   store.deleteDay(editingDay.key); closeDayModal();
 });
@@ -569,6 +582,7 @@ document.getElementById("setMonthBtn").addEventListener("click", () => {
   document.getElementById("monthModalTitle").textContent = `${MONTHS[m]} ${y}`;
   mName.value = monthData.month?.name || "";
   mReason.value = monthData.month?.reason || "";
+  resetMonthDelete();
   monthModal.classList.add("open");
   setTimeout(()=>mName.focus(), 50);
 });
@@ -580,7 +594,7 @@ document.getElementById("monthSave").addEventListener("click", async () => {
   const blob = await encObj(cryptoKey, { name, reason: mReason.value.trim() });
   store.saveMonth(mk, blob);
 });
-document.getElementById("monthDelete").addEventListener("click", () => {
+const resetMonthDelete = makeConfirm(document.getElementById("monthDelete"), "Очистить", () => {
   store.deleteMonth(monthKey(view.getFullYear(), view.getMonth()));
   monthModal.classList.remove("open");
 });
