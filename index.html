@@ -95,6 +95,21 @@
   .cell.filled{background:var(--accent-soft); border-color:transparent}
   .emp{font-size:13px; font-weight:600; color:var(--text); word-break:break-word; line-height:1.25}
   .emp .star{color:var(--gold)}
+  .emp .joke-ic{color:var(--gold)}
+
+  /* ---- Вкладки ---- */
+  .tabs{display:flex; gap:6px; background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:4px; margin-bottom:16px}
+  .tab{flex:1; text-align:center; padding:9px 8px; border-radius:9px; border:none; background:transparent; color:var(--muted); font-weight:600; cursor:pointer; font-size:14px}
+  .tab.active{background:var(--card); color:var(--text); box-shadow:0 1px 5px rgba(0,0,0,.10)}
+  .hidden{display:none !important}
+
+  /* ---- Строка сотрудника в модалке ---- */
+  .emp-row{border:1px solid var(--line); border-radius:12px; padding:10px 10px 12px; margin-bottom:10px; position:relative}
+  .emp-row .emp-remove{position:absolute; top:5px; right:7px; border:none; background:transparent; color:var(--muted); font-size:20px; line-height:1; cursor:pointer; padding:2px 6px}
+  .emp-row .emp-remove:hover{color:var(--danger)}
+  .emp-row .emp-name{padding-right:34px}
+  .emp-row .emp-note{margin-top:8px; font-size:14px}
+  #empAdd{width:100%; margin-top:2px}
 
   /* ---- Работник месяца ---- */
   .month-winner{margin-top:18px; display:flex; align-items:center; gap:16px; flex-wrap:wrap}
@@ -110,7 +125,7 @@
   /* ---- Модалка ---- */
   .modal{position:fixed; inset:0; z-index:40; display:none; align-items:center; justify-content:center; background:rgba(15,19,32,.45); padding:18px}
   .modal.open{display:flex}
-  .modal-card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); width:100%; max-width:400px; padding:22px}
+  .modal-card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); width:100%; max-width:400px; padding:22px; max-height:90vh; overflow:auto}
   .modal-card h3{margin:0 0 2px; font-size:18px}
   .modal-card .sub{color:var(--muted); font-size:13px; margin-bottom:16px; text-transform:capitalize}
   label.lbl{display:block; font-size:13px; font-weight:600; margin:12px 0 6px}
@@ -147,6 +162,11 @@
   </header>
 
   <div class="card">
+    <div class="tabs">
+      <button class="tab active" id="tabEmp" type="button">🏆 Работник дня</button>
+      <button class="tab" id="tabJoke" type="button">😄 Шутка дня</button>
+    </div>
+
     <div class="cal-head">
       <button class="nav-btn" id="prevBtn" aria-label="Предыдущий месяц">‹</button>
       <div class="cal-title" id="calTitle">—</div>
@@ -159,7 +179,7 @@
     </div>
     <div class="grid" id="grid"></div>
 
-    <div class="month-winner">
+    <div class="month-winner" id="monthWinner">
       <div class="trophy">🥇</div>
       <div class="mw-info">
         <div class="label">Работник месяца</div>
@@ -174,18 +194,34 @@
   <p class="hint" id="footHint"></p>
 </div>
 
-<!-- МОДАЛКА: работник дня -->
+<!-- МОДАЛКА: работники дня (можно несколько) -->
 <div class="modal" id="dayModal">
   <div class="modal-card">
-    <h3>Работник дня</h3>
+    <h3>Работники дня</h3>
     <div class="sub" id="dayModalDate">—</div>
-    <label class="lbl" for="empName">Имя работника</label>
-    <input class="field" id="empName" type="text" placeholder="Например: Иван Петров" />
-    <label class="lbl" for="empNote">Комментарий (необязательно)</label>
-    <textarea class="field" id="empNote" placeholder="За что отмечен"></textarea>
+    <div id="empList"></div>
+    <button class="btn ghost" id="empAdd" type="button">+ Добавить сотрудника</button>
     <div class="modal-actions">
       <button class="btn danger" id="dayDelete">Очистить</button>
       <button class="btn" id="daySave">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- МОДАЛКА: шутка дня -->
+<div class="modal" id="jokeModal">
+  <div class="modal-card">
+    <h3>Шутка дня</h3>
+    <div class="sub" id="jokeModalDate">—</div>
+    <label class="lbl" for="jokeText">Шутка</label>
+    <textarea class="field" id="jokeText" placeholder="Текст шутки"></textarea>
+    <label class="lbl" for="jokeAuthor">Автор</label>
+    <input class="field" id="jokeAuthor" type="text" placeholder="Кто пошутил" />
+    <label class="lbl" for="jokeDesc">Описание (необязательно)</label>
+    <textarea class="field" id="jokeDesc" placeholder="Контекст, пояснение"></textarea>
+    <div class="modal-actions">
+      <button class="btn danger" id="jokeDelete">Очистить</button>
+      <button class="btn" id="jokeSave">Сохранить</button>
     </div>
   </div>
 </div>
@@ -282,16 +318,17 @@ let store, mode;
 
 function makeLocalStore(){
   const DKEY = "eod_data_v2", MKEY = "eod_meta_v2";
-  const read = () => { try{ return JSON.parse(localStorage.getItem(DKEY)) || {days:{},months:{}}; }catch{ return {days:{},months:{}}; } };
+  const read = () => { try{ const d = JSON.parse(localStorage.getItem(DKEY)) || {}; return { days:d.days||{}, months:d.months||{}, jokes:d.jokes||{} }; }catch{ return {days:{},months:{},jokes:{}}; } };
   const write = d => { localStorage.setItem(DKEY, JSON.stringify(d)); window.dispatchEvent(new Event("eod-local-change")); };
   let handlers = [];
   const emit = () => handlers.forEach(h => h());
   window.addEventListener("storage", emit);
   window.addEventListener("eod-local-change", emit);
   const pull = (mKey, cb) => {
-    const all = read(), days = {};
-    for(const [k,v] of Object.entries(all.days)) if(v && v.month===mKey) days[k]=v;
-    cb({ days, month: all.months[mKey] || null });
+    const all = read(), days = {}, jokes = {};
+    for(const [k,v] of Object.entries(all.days))  if(v && v.month===mKey) days[k]=v;
+    for(const [k,v] of Object.entries(all.jokes)) if(v && v.month===mKey) jokes[k]=v;
+    cb({ days, month: all.months[mKey] || null, jokes });
   };
   return {
     async getMeta(){ try{ return JSON.parse(localStorage.getItem(MKEY)) || null; }catch{ return null; } },
@@ -301,6 +338,8 @@ function makeLocalStore(){
     deleteDay(dKey){ const d=read(); delete d.days[dKey]; write(d); },
     saveMonth(mKey,blob){ const d=read(); d.months[mKey]=blob; write(d); },
     deleteMonth(mKey){ const d=read(); delete d.months[mKey]; write(d); },
+    saveJoke(dKey,mKey,blob){ const d=read(); d.jokes[dKey]={...blob,month:mKey}; write(d); },
+    deleteJoke(dKey){ const d=read(); delete d.jokes[dKey]; write(d); },
   };
 }
 
@@ -312,17 +351,22 @@ async function makeFirebaseStore(){
     async getMeta(){ const s = await fs.getDoc(fs.doc(db,"meta","auth")); return s.exists() ? s.data() : null; },
     async setMeta(data){ return fs.setDoc(fs.doc(db,"meta","auth"), data); },
     subscribeMonth(mKey, cb){
-      let days = {}, month = null;
+      let days = {}, month = null, jokes = {};
       const u1 = fs.onSnapshot(fs.query(fs.collection(db,"days"), fs.where("month","==",mKey)), snap => {
-        days = {}; snap.forEach(doc => days[doc.id] = doc.data()); cb({ days, month });
+        days = {}; snap.forEach(doc => days[doc.id] = doc.data()); cb({ days, month, jokes });
       });
-      const u2 = fs.onSnapshot(fs.doc(db,"months",mKey), doc => { month = doc.exists() ? doc.data() : null; cb({ days, month }); });
-      return () => { u1(); u2(); };
+      const u2 = fs.onSnapshot(fs.doc(db,"months",mKey), doc => { month = doc.exists() ? doc.data() : null; cb({ days, month, jokes }); });
+      const u3 = fs.onSnapshot(fs.query(fs.collection(db,"jokes"), fs.where("month","==",mKey)), snap => {
+        jokes = {}; snap.forEach(doc => jokes[doc.id] = doc.data()); cb({ days, month, jokes });
+      });
+      return () => { u1(); u2(); u3(); };
     },
     saveDay(dKey,mKey,blob){ return fs.setDoc(fs.doc(db,"days",dKey), {...blob, month:mKey}); },
     deleteDay(dKey){ return fs.deleteDoc(fs.doc(db,"days",dKey)); },
     saveMonth(mKey,blob){ return fs.setDoc(fs.doc(db,"months",mKey), blob); },
     deleteMonth(mKey){ return fs.deleteDoc(fs.doc(db,"months",mKey)); },
+    saveJoke(dKey,mKey,blob){ return fs.setDoc(fs.doc(db,"jokes",dKey), {...blob, month:mKey}); },
+    deleteJoke(dKey){ return fs.deleteDoc(fs.doc(db,"jokes",dKey)); },
   };
 }
 
@@ -450,8 +494,9 @@ function openApp(){
 const today = new Date();
 let view = new Date(today.getFullYear(), today.getMonth(), 1);
 let unsub = null;
-let monthData = { days:{}, month:null };   // здесь уже РАСШИФРОВАННЫЕ данные
+let monthData = { days:{}, month:null, jokes:{} };   // здесь уже РАСШИФРОВАННЫЕ данные
 let renderToken = 0;
+let activeTab = "emp";   // "emp" (работники) | "joke" (шутки)
 
 const calTitle = document.getElementById("calTitle");
 const grid = document.getElementById("grid");
@@ -470,18 +515,30 @@ function render(){
   });
 }
 
+// Старый формат дня {name, note} → массив сотрудников; новый — {employees:[...]}.
+function normEmployees(o){
+  if(o && Array.isArray(o.employees)) return o.employees.filter(e => e && e.name).map(e => ({ name:e.name, note:e.note||"" }));
+  if(o && o.name) return [{ name:o.name, note:o.note||"" }];
+  return [];
+}
+
 async function decryptMonth(raw){
   const days = {};
   await Promise.all(Object.entries(raw.days).map(async ([k,blob]) => {
-    try{ const o = await decObj(cryptoKey, blob); days[k] = { name:o.name||"", note:o.note||"", month:blob.month }; }
-    catch{ days[k] = { name:"", note:"", month:blob.month }; }
+    try{ const o = await decObj(cryptoKey, blob); days[k] = { employees: normEmployees(o), month:blob.month }; }
+    catch{ days[k] = { employees:[], month:blob.month }; }
   }));
   let month = null;
   if(raw.month){
     try{ const o = await decObj(cryptoKey, raw.month); month = { name:o.name||"", reason:o.reason||"" }; }
     catch{ month = { name:"", reason:"" }; }
   }
-  return { days, month };
+  const jokes = {};
+  await Promise.all(Object.entries(raw.jokes || {}).map(async ([k,blob]) => {
+    try{ const o = await decObj(cryptoKey, blob); jokes[k] = { joke:o.joke||"", author:o.author||"", desc:o.desc||"", month:blob.month }; }
+    catch{ jokes[k] = { joke:"", author:"", desc:"", month:blob.month }; }
+  }));
+  return { days, month, jokes };
 }
 
 function drawGrid(){
@@ -492,18 +549,30 @@ function drawGrid(){
   let html = "";
   for(let i=0;i<startOffset;i++) html += `<div class="cell empty"></div>`;
   for(let d=1; d<=daysInMonth; d++){
-    const rec = monthData.days[dayKey(y,m,d)];
+    const key = dayKey(y,m,d);
     const dow = new Date(y,m,d).getDay();
     const cls = ["cell"];
     if(dow===0 || dow===6) cls.push("weekend");
-    if(rec && rec.name) cls.push("filled");
     if(isThisMonth && d===today.getDate()) cls.push("today");
-    const empHtml = (rec && rec.name) ? `<div class="emp"><span class="star">★</span> ${esc(rec.name)}</div>` : "";
-    html += `<div class="${cls.join(" ")}" data-day="${d}"><div class="daynum">${d}</div>${empHtml}</div>`;
+    let inner = "";
+    if(activeTab === "emp"){
+      const emps = (monthData.days[key] && monthData.days[key].employees) || [];
+      if(emps.length) cls.push("filled");
+      inner = emps.map(e => `<div class="emp"><span class="star">★</span> ${esc(e.name)}</div>`).join("");
+    } else {
+      const j = monthData.jokes[key];
+      if(j && j.joke) cls.push("filled");
+      inner = (j && j.joke) ? `<div class="emp"><span class="joke-ic">😄</span> ${esc(clip(j.joke,60))}</div>` : "";
+    }
+    html += `<div class="${cls.join(" ")}" data-day="${d}"><div class="daynum">${d}</div>${inner}</div>`;
   }
   grid.innerHTML = html;
-  grid.querySelectorAll(".cell[data-day]").forEach(cell => cell.addEventListener("click", () => openDayModal(+cell.dataset.day)));
+  grid.querySelectorAll(".cell[data-day]").forEach(cell => cell.addEventListener("click", () => {
+    const d = +cell.dataset.day;
+    if(activeTab === "emp") openDayModal(d); else openJokeModal(d);
+  }));
 }
+function clip(s,n){ s = String(s||""); return s.length>n ? s.slice(0,n-1)+"…" : s; }
 
 function drawMonthWinner(){
   const nameEl = document.getElementById("mwName");
@@ -513,10 +582,21 @@ function drawMonthWinner(){
   if(w && w.name){ nameEl.textContent = w.name; nameEl.classList.remove("empty"); reasonEl.textContent = w.reason || ""; }
   else { nameEl.textContent = "не выбран"; nameEl.classList.add("empty"); reasonEl.textContent = ""; }
   const counts = {};
-  for(const rec of Object.values(monthData.days)) if(rec && rec.name) counts[rec.name] = (counts[rec.name]||0)+1;
+  for(const rec of Object.values(monthData.days))
+    for(const e of (rec.employees||[])) if(e.name) counts[e.name] = (counts[e.name]||0)+1;
   const top = Object.entries(counts).sort((a,b)=>b[1]-a[1])[0];
   suggestEl.innerHTML = top ? `Чаще всех в этом месяце: <b>${esc(top[0])}</b> (${top[1]} ${plural(top[1])})` : "";
 }
+
+function setTab(t){
+  activeTab = t;
+  document.getElementById("tabEmp").classList.toggle("active", t==="emp");
+  document.getElementById("tabJoke").classList.toggle("active", t==="joke");
+  document.getElementById("monthWinner").classList.toggle("hidden", t!=="emp");
+  drawGrid();
+}
+document.getElementById("tabEmp").addEventListener("click", () => setTab("emp"));
+document.getElementById("tabJoke").addEventListener("click", () => setTab("joke"));
 function plural(n){
   const a=n%10, b=n%100;
   if(a===1 && b!==11) return "раз";
@@ -527,34 +607,6 @@ function plural(n){
 document.getElementById("prevBtn").addEventListener("click", () => { view = new Date(view.getFullYear(), view.getMonth()-1, 1); render(); });
 document.getElementById("nextBtn").addEventListener("click", () => { view = new Date(view.getFullYear(), view.getMonth()+1, 1); render(); });
 
-/* ==================== МОДАЛКА «работник дня» ==================== */
-const dayModal = document.getElementById("dayModal");
-const empName = document.getElementById("empName");
-const empNote = document.getElementById("empNote");
-let editingDay = null;
-
-function openDayModal(d){
-  const y=view.getFullYear(), m=view.getMonth();
-  editingDay = { y, m, d, key: dayKey(y,m,d) };
-  const rec = monthData.days[editingDay.key];
-  document.getElementById("dayModalDate").textContent = `${d} ${MONTHS_GEN[m]} ${y}`;
-  empName.value = rec?.name || "";
-  empNote.value = rec?.note || "";
-  resetDayDelete();
-  dayModal.classList.add("open");
-  setTimeout(()=>empName.focus(), 50);
-}
-function closeDayModal(){ dayModal.classList.remove("open"); editingDay=null; }
-
-document.getElementById("daySave").addEventListener("click", async () => {
-  if(!editingDay) return;
-  const name = empName.value.trim();
-  const ed = editingDay;
-  closeDayModal();
-  if(!name){ store.deleteDay(ed.key); return; }
-  const blob = await encObj(cryptoKey, { name, note: empNote.value.trim() });
-  store.saveDay(ed.key, monthKey(ed.y,ed.m), blob);
-});
 // Двухшаговое подтверждение для кнопки «Очистить»:
 // первый клик — предупреждение, второй (в течение 4 сек) — удаление.
 function makeConfirm(btn, label, action){
@@ -566,11 +618,66 @@ function makeConfirm(btn, label, action){
   });
   return reset;
 }
+
+/* ==================== МОДАЛКА «работники дня» (несколько) ==================== */
+const dayModal = document.getElementById("dayModal");
+const empList = document.getElementById("empList");
+let editingDay = null;
+
+function addEmpRow(name="", note=""){
+  const row = document.createElement("div");
+  row.className = "emp-row";
+  row.innerHTML =
+    `<button class="emp-remove" type="button" title="Убрать">×</button>
+     <input class="field emp-name" type="text" placeholder="Имя сотрудника" />
+     <input class="field emp-note" type="text" placeholder="Комментарий (необязательно)" />`;
+  row.querySelector(".emp-name").value = name;
+  row.querySelector(".emp-note").value = note;
+  row.querySelector(".emp-remove").addEventListener("click", () => {
+    row.remove();
+    if(!empList.children.length) addEmpRow();   // всегда хотя бы одна строка
+  });
+  row.querySelector(".emp-name").addEventListener("keydown", e => {
+    if(e.key==="Enter"){ e.preventDefault(); document.getElementById("daySave").click(); }
+  });
+  empList.appendChild(row);
+  return row;
+}
+
+function openDayModal(d){
+  const y=view.getFullYear(), m=view.getMonth();
+  editingDay = { y, m, d, key: dayKey(y,m,d) };
+  document.getElementById("dayModalDate").textContent = `${d} ${MONTHS_GEN[m]} ${y}`;
+  empList.innerHTML = "";
+  const emps = (monthData.days[editingDay.key] && monthData.days[editingDay.key].employees) || [];
+  if(emps.length) emps.forEach(e => addEmpRow(e.name, e.note)); else addEmpRow();
+  resetDayDelete();
+  dayModal.classList.add("open");
+  setTimeout(()=>empList.querySelector(".emp-name")?.focus(), 50);
+}
+function closeDayModal(){ dayModal.classList.remove("open"); editingDay=null; }
+
+document.getElementById("empAdd").addEventListener("click", () => {
+  const r = addEmpRow();
+  r.querySelector(".emp-name").focus();
+});
+
+document.getElementById("daySave").addEventListener("click", async () => {
+  if(!editingDay) return;
+  const ed = editingDay;
+  const employees = [...empList.querySelectorAll(".emp-row")].map(r => ({
+    name: r.querySelector(".emp-name").value.trim(),
+    note: r.querySelector(".emp-note").value.trim()
+  })).filter(e => e.name);
+  closeDayModal();
+  if(!employees.length){ store.deleteDay(ed.key); return; }
+  const blob = await encObj(cryptoKey, { employees });
+  store.saveDay(ed.key, monthKey(ed.y,ed.m), blob);
+});
 const resetDayDelete = makeConfirm(document.getElementById("dayDelete"), "Очистить", () => {
   if(!editingDay) return;
   store.deleteDay(editingDay.key); closeDayModal();
 });
-empName.addEventListener("keydown", e => { if(e.key==="Enter") document.getElementById("daySave").click(); });
 
 /* ==================== МОДАЛКА «работник месяца» ==================== */
 const monthModal = document.getElementById("monthModal");
@@ -599,8 +706,43 @@ const resetMonthDelete = makeConfirm(document.getElementById("monthDelete"), "О
   monthModal.classList.remove("open");
 });
 
-[dayModal, monthModal].forEach(mod => mod.addEventListener("click", e => { if(e.target===mod) mod.classList.remove("open"); }));
-document.addEventListener("keydown", e => { if(e.key==="Escape"){ dayModal.classList.remove("open"); monthModal.classList.remove("open"); } });
+/* ==================== МОДАЛКА «шутка дня» ==================== */
+const jokeModal = document.getElementById("jokeModal");
+const jokeText = document.getElementById("jokeText");
+const jokeAuthor = document.getElementById("jokeAuthor");
+const jokeDesc = document.getElementById("jokeDesc");
+let editingJoke = null;
+
+function openJokeModal(d){
+  const y=view.getFullYear(), m=view.getMonth();
+  editingJoke = { y, m, d, key: dayKey(y,m,d) };
+  document.getElementById("jokeModalDate").textContent = `${d} ${MONTHS_GEN[m]} ${y}`;
+  const j = monthData.jokes[editingJoke.key];
+  jokeText.value = j?.joke || "";
+  jokeAuthor.value = j?.author || "";
+  jokeDesc.value = j?.desc || "";
+  resetJokeDelete();
+  jokeModal.classList.add("open");
+  setTimeout(()=>jokeText.focus(), 50);
+}
+function closeJokeModal(){ jokeModal.classList.remove("open"); editingJoke=null; }
+
+document.getElementById("jokeSave").addEventListener("click", async () => {
+  if(!editingJoke) return;
+  const ej = editingJoke;
+  const joke = jokeText.value.trim();
+  closeJokeModal();
+  if(!joke){ store.deleteJoke(ej.key); return; }
+  const blob = await encObj(cryptoKey, { joke, author: jokeAuthor.value.trim(), desc: jokeDesc.value.trim() });
+  store.saveJoke(ej.key, monthKey(ej.y,ej.m), blob);
+});
+const resetJokeDelete = makeConfirm(document.getElementById("jokeDelete"), "Очистить", () => {
+  if(!editingJoke) return;
+  store.deleteJoke(editingJoke.key); closeJokeModal();
+});
+
+[dayModal, monthModal, jokeModal].forEach(mod => mod.addEventListener("click", e => { if(e.target===mod) mod.classList.remove("open"); }));
+document.addEventListener("keydown", e => { if(e.key==="Escape"){ dayModal.classList.remove("open"); monthModal.classList.remove("open"); jokeModal.classList.remove("open"); } });
 </script>
 </body>
 </html>
